@@ -1,0 +1,13 @@
+{
+  "name": "CANBed Dual",
+  "keywords": "can, bus",
+  "description": "Arduino Library for CANBed Dual",
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/Longan-Labs/CANBedDual_Arduino_Lib.git"
+  },
+  "version": "1.0.0",
+  "frameworks": "arduino",
+  "platforms": "atmelavr"
+}
