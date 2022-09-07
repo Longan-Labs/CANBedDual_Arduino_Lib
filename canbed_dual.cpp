@@ -1,7 +1,6 @@
 #include "canbed_dual.h"
 
 
-
 unsigned long CANBedDual::char2long(unsigned char *str)
 {
     unsigned long __t = 0;
@@ -49,39 +48,39 @@ void CANBedDual::makeCanConfig()
     unsigned long mf_mask3  = 0;
     unsigned long mf_filt3  = 0;
     
-    long2char(can20_baud, &canconfig[0]);
-    long2char(canfd_baud, &canconfig[4]);
+    long2char(can20_baud, &canConfig[0]);
+    long2char(canfd_baud, &canConfig[4]);
     
     // set mask&filt 0
-    canconfig[8] = mf_set0;
-    canconfig[9] = mf_ext0;
-    long2char(mf_mask0, &canconfig[10]);
-    long2char(mf_filt0, &canconfig[14]);
+    canConfig[8] = mf_set0;
+    canConfig[9] = mf_ext0;
+    long2char(mf_mask0, &canConfig[10]);
+    long2char(mf_filt0, &canConfig[14]);
     
     // set mask&filt 1
-    canconfig[18] = mf_set1;
-    canconfig[19] = mf_ext1;
-    long2char(mf_mask1, &canconfig[20]);
-    long2char(mf_filt1, &canconfig[24]);
+    canConfig[18] = mf_set1;
+    canConfig[19] = mf_ext1;
+    long2char(mf_mask1, &canConfig[20]);
+    long2char(mf_filt1, &canConfig[24]);
     
     // set mask&filt 2
-    canconfig[28] = mf_set2;
-    canconfig[29] = mf_ext2;
-    long2char(mf_mask2, &canconfig[30]);
-    long2char(mf_filt2, &canconfig[34]);
+    canConfig[28] = mf_set2;
+    canConfig[29] = mf_ext2;
+    long2char(mf_mask2, &canConfig[30]);
+    long2char(mf_filt2, &canConfig[34]);
     
     // set mask&filt 3
-    canconfig[38] = mf_set3;
-    canconfig[39] = mf_ext3;
-    long2char(mf_mask3, &canconfig[40]);
-    long2char(mf_filt3, &canconfig[44]);
+    canConfig[38] = mf_set3;
+    canConfig[39] = mf_ext3;
+    long2char(mf_mask3, &canConfig[40]);
+    long2char(mf_filt3, &canConfig[44]);
 }
 
 void CANBedDual::sendConfig()
 {
     CANI2C.beginTransmission(0x41);
     CANI2C.write(canNum ? 0x19 : 0x09);
-    CANI2C.write(canconfig, 48);
+    CANI2C.write(canConfig, 48);
     CANI2C.endTransmission();
     
     delay(10);
@@ -90,8 +89,8 @@ void CANBedDual::sendConfig()
 void CANBedDual::init(unsigned long speed)
 {
     makeCanConfig();
-    long2char(speed, &canconfig[0]);
-    long2char(1000000, &canconfig[4]);
+    long2char(speed, &canConfig[0]);
+    long2char(1000000, &canConfig[4]);
     
     sendConfig();
 }
@@ -100,39 +99,29 @@ void CANBedDual::initFD(unsigned long speed20, unsigned long speedfd)
 {
 
     makeCanConfig();
-    long2char(speed20, &canconfig[0]);
-    long2char(speedfd, &canconfig[4]);
+    long2char(speed20, &canConfig[0]);
+    long2char(speedfd, &canConfig[4]);
     
     sendConfig();
 }
     
 void CANBedDual::initMaskFilt(unsigned char num, unsigned char ext, unsigned long mask, unsigned long filt)
 {
-    if(num > 3)return;
-    canconfig[10*num+8] = 1;
-    canconfig[10*num+9] = ext;
-    long2char(mask, &canconfig[10+10*num]);
-    long2char(filt, &canconfig[14+10*num]);
+    if(num > 3) return;
+    canConfig[10*num+8] = 1;
+    canConfig[10*num+9] = ext;
+    long2char(mask, &canConfig[10+10*num]);
+    long2char(filt, &canConfig[14+10*num]);
     
     sendConfig();
-
 }
     
 void CANBedDual::send(unsigned long id, unsigned char ext, unsigned char rtr, unsigned char fd, unsigned char len, unsigned char *dta)
 {
-  /*  if(micros()-timerDelay < DELAY_TIME)
-    {
-        delayMicroseconds(DELAY_TIME-(micros()-timerDelay));
-    }
-    timerDelay = micros();   
-    */
     unsigned char dsend[100];
 
     dsend[0] = canNum ? 0x15 : 0X05;
-    dsend[4] = id&0xff;
-    dsend[3] = (id>>8)&0xff;
-    dsend[2] = (id>>16)&0xff;
-    dsend[1] = (id>>24)&0xff;
+    long2char(id, &dsend[1]);
 
     dsend[5] = rtr;       // data or remote, 1:remote, 0:data
     dsend[6] = ext;       // standard or ext, 1 ext, 0 standard
@@ -145,19 +134,18 @@ void CANBedDual::send(unsigned long id, unsigned char ext, unsigned char rtr, un
         dsend[i+9] = dta[i];
     }
 
-    CANI2C.beginTransmission(0x41);
+    CANI2C.beginTransmission(I2C_ADDR);
     CANI2C.write(dsend, dsend[8] + 9);
     CANI2C.endTransmission();
 }
 
 byte CANBedDual::checkRecv()
 {
-
-    CANI2C.beginTransmission(0x41);
+    CANI2C.beginTransmission(I2C_ADDR);
     CANI2C.write(canNum ? 0x14 : 0x04);
     CANI2C.endTransmission();
 
-    CANI2C.requestFrom(0x41, 1);
+    CANI2C.requestFrom(I2C_ADDR, 1);
     int len = CANI2C.read();
 
     return len;
@@ -165,19 +153,13 @@ byte CANBedDual::checkRecv()
 
 byte CANBedDual::read(unsigned long *id, int *ext, int *rtr, int *fd, int *len, unsigned char *str)
 {
- /*   if(micros()-timerDelay < DELAY_TIME)
-    {
-        delayMicroseconds(DELAY_TIME-(micros()-timerDelay));
-    }
-    timerDelay = micros();
-    */
-    if(checkRecv() == 0)return 0;
+    if(checkRecv() == 0) return 0;
 
-    CANI2C.beginTransmission(0x41);
+    CANI2C.beginTransmission(I2C_ADDR);
     CANI2C.write(canNum ? 0x16 : 0x06);
     CANI2C.endTransmission();
 
-    CANI2C.requestFrom(0x41, 8);
+    CANI2C.requestFrom(I2C_ADDR, 8);
 
     unsigned char strg[100];
 
@@ -200,35 +182,35 @@ byte CANBedDual::read(unsigned long *id, int *ext, int *rtr, int *fd, int *len, 
 
     if(dtaLen <= 32)
     {
-        CANI2C.beginTransmission(0x41);
+        CANI2C.beginTransmission(I2C_ADDR);
         CANI2C.write(canNum ? 0x17 : 0x07);
         CANI2C.endTransmission();
 
-        CANI2C.requestFrom(0x41, 8);
+        CANI2C.requestFrom(I2C_ADDR, dtaLen);
 
-        for(int i=0; i<8; i++)
+        for(int i=0; i<dtaLen; i++)
         {
             str[i]= CANI2C.read();
         }
     }
     else
     {
-        CANI2C.beginTransmission(0x41);
+        CANI2C.beginTransmission(I2C_ADDR);
         CANI2C.write(canNum ? 0x17 : 0x07);
         CANI2C.endTransmission();
 
-        CANI2C.requestFrom(0x41, 32);
+        CANI2C.requestFrom(I2C_ADDR, 32);
 
         for(int i=0; i<32; i++)
         {
             str[i]= CANI2C.read();
         }
 
-        CANI2C.beginTransmission(0x41);
+        CANI2C.beginTransmission(I2C_ADDR);
         CANI2C.write(canNum ? 0x18 : 0x08);
         CANI2C.endTransmission();
 
-        CANI2C.requestFrom(0x41, dtaLen-32);
+        CANI2C.requestFrom(I2C_ADDR, dtaLen-32);
 
         for(int i=0; i<(dtaLen-32); i++)
         {
